@@ -135,3 +135,84 @@ exports.updateOrderStatus = asyncHandler(async (req, res) => {
 
   res.status(200).json(200, "Order status updated", order);
 });
+
+exports.getAllOrders = asyncHandler(async (req, res) => {
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 10;
+
+  const skip = (page - 1) * limit;
+
+  // Optional filters
+  const filter = {};
+
+  if (req.query.status) {
+    filter.status = req.query.status;
+  }
+
+  if (req.query.user) {
+    filter.user = req.query.user;
+  }
+
+  const totalOrders = await Order.countDocuments(filter);
+
+  const orders = await Order.find(filter)
+    .populate("user", "name email")
+    .populate("items.product", "name price")
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
+
+  res.status(200).json(
+    new ApiResponse(200, {
+      page,
+      totalPages: Math.ceil(totalOrders / limit),
+      totalOrders,
+      orders,
+    }),
+  );
+});
+
+exports.cancelOrder = asyncHandler(async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const order = await Order.findById(req.params.id).session(session);
+
+    if (!order) {
+      throw new ApiError(404, "Order not found");
+    }
+
+    if (order.user.toString() !== req.user._id.toString()) {
+      throw new ApiError(403, "Not allowed to cancel this order");
+    }
+
+    const cancellableStatuses = ["pending", "confirmed"];
+
+    if (!cancellableStatuses.includes(order.status)) {
+      throw new ApiError(400, "Order cannot be cancelled at this stage");
+    }
+    for (const item of order.items) {
+      await Product.findByIdAndUpdate(
+        item.product,
+        { $inc: { stock: item.quantity } },
+        { session },
+      );
+    }
+    order.status = "cancelled";
+    order.cancelledAt = new Date();
+
+    await order.save({ session });
+
+    await session.commitTransaction();
+
+    res
+      .status(200)
+      .json(new ApiResponse(200, "Order cancelled successfully", order));
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
+  }
+});

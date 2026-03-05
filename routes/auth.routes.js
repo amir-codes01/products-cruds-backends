@@ -19,7 +19,7 @@ const { protect } = require("../middlewares/auth.middleware");
 // AUTH Routes
 router.post("/register", register);
 router.post("/login", login);
-router.post("/refreshtoken", protect, refreshToken);
+router.post("/refreshtoken", refreshToken);
 router.post("/logout", protect, logout);
 router.put("/change-password", protect, changePassword);
 
