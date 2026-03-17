@@ -67,6 +67,7 @@ const login = asyncHandler(async (req, res) => {
     .status(200)
     .json(
       new ApiResponse(200, "User logged in successfully", {
+        accessToken,
         user: {
           id: user._id,
           username: user.username,
@@ -105,34 +106,45 @@ const refreshToken = asyncHandler(async (req, res) => {
       httpOnly: true,
       secure: true,
       sameSite: "strict",
+      maxAge: 15 * 60 * 1000,
     })
     .cookie("refreshToken", newRefreshToken, {
       httpOnly: true,
       secure: true,
       sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     })
     .status(200)
-    .json(new ApiResponse(200, "Token refreshed"));
+    .json(new ApiResponse(200, "Token refreshed", accessToken));
 });
 
 const logout = asyncHandler(async (req, res) => {
   const refreshToken = req.cookies.refreshToken;
+  let userId = null;
 
   if (refreshToken) {
-    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-    if (decoded?.id) {
-      await User.findByIdAndUpdate(decoded.id, {
-        $unset: { refreshToken: 1 },
-      });
+    try {
+      const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+      if (decoded?.id) {
+        userId = decoded.id;
+        await User.findByIdAndUpdate(decoded.id, {
+          $unset: { refreshToken: 1 },
+        });
+      }
+    } catch (err) {
+      // Invalid refresh token, continue with logout anyway
+      console.warn("Invalid refresh token during logout:", err.message);
     }
   }
 
-  await AuditLog.create({
-    user: decoded?.id,
-    action: "USER_LOGOUT",
-    ipAddress: req.ip,
-    userAgent: req.headers["user-agent"],
-  });
+  if (userId) {
+    await AuditLog.create({
+      user: userId,
+      action: "USER_LOGOUT",
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+  }
 
   res
     .clearCookie("accessToken")

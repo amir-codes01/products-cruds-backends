@@ -202,4 +202,15 @@ const changePassword = asyncHandler(async (req, res) => {
     );
 });
 
-module.exports = { register, updateProfile, getSingleUser, changePassword };
+const getAllUsers = asyncHandler(async (req, res) => {
+  const user = await User.find({ status: "active" });
+  res.status(200).json(new ApiResponse(200, "users get successfully", user));
+});
+
+module.exports = {
+  register,
+  updateProfile,
+  getSingleUser,
+  changePassword,
+  getAllUsers,
+};
