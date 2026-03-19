@@ -14,6 +14,7 @@ const {
   changePassword,
   getAllUsers,
   updateSingleUser,
+  deleteUser,
 } = require("../controllers/user.controller");
 
 const { protect } = require("../middlewares/auth.middleware");
@@ -30,5 +31,6 @@ router.get("/me", protect, getSingleUser);
 router.put("/me", protect, updateProfile);
 router.get("/", getAllUsers);
 router.put("/:userId", protect, updateSingleUser);
+router.delete("/:userId", protect, deleteUser);
 
 module.exports = router;

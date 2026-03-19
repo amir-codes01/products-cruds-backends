@@ -107,6 +107,50 @@ const updateSingleUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, "User updated successfully", updatedUser));
 });
 
+const deleteUser = asyncHandler(async (req, res) => {
+  const { userId } = req.params;
+
+  if (!userId) {
+    throw new ApiError(400, "User ID is required");
+  }
+
+  const existingUser = await User.findById(userId);
+  if (!existingUser) {
+    throw new ApiError(404, "User not found");
+  }
+
+  if (req.user.id === userId) {
+    throw new ApiError(400, "You cannot delete your own account");
+  }
+
+  if (existingUser.role === "superadmin") {
+    throw new ApiError(403, "Cannot delete super admin");
+  }
+
+  const deletedUser = await User.findByIdAndDelete(userId);
+
+  // 🧾 Audit log (non-blocking)
+  AuditLog.create({
+    user: req.user.id,
+    targetUser: userId,
+    action: "DELETE_USER",
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+    metadata: {
+      email: existingUser.email,
+      username: existingUser.username,
+    },
+  }).catch((err) => {
+    console.error("Audit log failed:", err);
+  });
+
+  return res.status(200).json(
+    new ApiResponse(200, "User deleted successfully", {
+      id: existingUser._id,
+    }),
+  );
+});
+
 const updateProfile = asyncHandler(async (req, res) => {
   const userId = req.user._id;
 
@@ -269,4 +313,5 @@ module.exports = {
   changePassword,
   getAllUsers,
   updateSingleUser,
+  deleteUser,
 };
