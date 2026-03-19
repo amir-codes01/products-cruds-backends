@@ -86,6 +86,57 @@ const getDashboardStats = asyncHandler(async (req, res) => {
   const products = productStats[0];
   const revenue = revenueStats[0];
 
+  // 6 months ago, first day of that month
+  const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+
+  // Aggregate revenue from Orders
+  const monthlyRevenueData = await Order.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: sixMonthsAgo, $lte: now },
+      },
+    },
+    {
+      $group: {
+        _id: { $month: "$createdAt" }, // group by month number
+        revenue: { $sum: "$totalAmount" },
+      },
+    },
+    { $sort: { _id: 1 } },
+  ]);
+
+  // Month names
+  const monthNames = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+
+  // Build last 6 months array with 0 revenue default
+  const last6Months = Array.from({ length: 6 }).map((_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
+    const month = monthNames[d.getMonth()];
+    return { month, revenue: 0 };
+  });
+
+  // Fill revenue from aggregation
+  monthlyRevenueData.forEach((item) => {
+    const month = monthNames[item._id - 1];
+    const idx = last6Months.findIndex((m) => m.month === month);
+    if (idx !== -1) last6Months[idx].revenue = item.revenue;
+  });
+
+  const formattedMonthlyRevenue = last6Months;
+
   res.status(200).json(
     new ApiResponse(200, "data get successfully", {
       totals: {
@@ -94,6 +145,7 @@ const getDashboardStats = asyncHandler(async (req, res) => {
         products: products.total[0]?.count || 0,
         revenue: revenue.total[0]?.total || 0,
       },
+      monthlyRevenue: formattedMonthlyRevenue,
       trends: {
         users: calculateTrend(
           users.lastMonth[0]?.count || 0,
