@@ -116,7 +116,12 @@ const refreshToken = asyncHandler(async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     })
     .status(200)
-    .json(new ApiResponse(200, "Token refreshed", accessToken));
+    .json(
+      new ApiResponse(200, "Token refreshed", {
+        newToken: newAccessToken,
+        userData: user,
+      }),
+    );
 });
 
 const logout = asyncHandler(async (req, res) => {
