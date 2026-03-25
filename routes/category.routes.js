@@ -9,7 +9,7 @@ const {
 const { protect, isAdmin } = require("../middlewares/auth.middleware");
 const router = express.Router();
 
-router.route().get(getCategory).post(protect, isAdmin, createCategory);
+router.route("/").get(getCategory).post(protect, isAdmin, createCategory);
 router
   .route("/:slug")
   .get(getSingleCategory)
