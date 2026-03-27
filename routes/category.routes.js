@@ -6,14 +6,21 @@ const {
   updateCategory,
   deleteCategory,
 } = require("../controllers/category.controller");
-const { protect, isAdmin } = require("../middlewares/auth.middleware");
+const {
+  protect,
+  isAdmin,
+  checkRole,
+} = require("../middlewares/auth.middleware");
 const router = express.Router();
 
-router.route("/").get(getCategory).post(protect, isAdmin, createCategory);
+router
+  .route("/")
+  .get(getCategory)
+  .post(protect, checkRole("admin", "superadmin"), createCategory);
 router
   .route("/:slug")
   .get(getSingleCategory)
-  .put(protect, isAdmin, updateCategory)
-  .delete(protect, isAdmin, deleteCategory);
+  .put(protect, checkRole("admin", "superadmin"), updateCategory)
+  .delete(protect, checkRole("admin", "superadmin"), deleteCategory);
 
 module.exports = router;
