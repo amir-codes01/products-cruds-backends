@@ -31,4 +31,19 @@ const isAdmin = asyncHandler(async (req, res, next) => {
   next();
 });
 
-module.exports = { protect, isAdmin };
+const checkRole = (...permittedRoles) => {
+  return asyncHandler(async (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    if (!permittedRoles.includes(req.user.role)) {
+      return res
+        .status(403)
+        .json({ message: "Forbidden: Insufficient permissions" });
+    }
+    next();
+  });
+};
+
+module.exports = { protect, isAdmin, checkRole };
