@@ -26,6 +26,7 @@ app.use("/api/users", require("./routes/auth.routes"));
 app.use("/api/products", require("./routes/product.routes"));
 app.use("/api/category", require("./routes/category.routes"));
 app.use("/api/dashboard", require("./routes/dashboard.routes"));
+app.use("/api/audit-logs", require("./routes/auditLog.routes"));
 
 app.use(errorHandler);
 
