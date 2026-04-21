@@ -130,15 +130,15 @@ exports.getSingleProduct = asyncHandler(async (req, res) => {
 
   const product = await Product.findOne({ slug: slug, isActive: true })
     .populate("category", "name slug")
-    .populate("createdBy", "username email")
-    .populate({
-      path: "reviews",
-      select: "rating comment user",
-      populate: {
-        path: "user",
-        select: "username",
-      },
-    });
+    .populate("createdBy", "username email");
+  // .populate({
+  //   path: "review",
+  //   select: "rating comment user",
+  //   populate: {
+  //     path: "user",
+  //     select: "username",
+  //   },
+  // });
 
   if (!product) {
     throw new ApiError(404, "Product not found");
