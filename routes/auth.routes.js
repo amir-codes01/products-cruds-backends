@@ -17,7 +17,7 @@ const {
   deleteUser,
 } = require("../controllers/user.controller");
 
-const { protect } = require("../middlewares/auth.middleware");
+const { protect, checkRole } = require("../middlewares/auth.middleware");
 
 // AUTH Routes
 router.post("/register", register);
@@ -29,7 +29,7 @@ router.put("/change-password", protect, changePassword);
 // User profile routes
 router.get("/me", protect, getSingleUser);
 router.put("/me", protect, updateProfile);
-router.get("/", getAllUsers);
+router.get("/", protect, checkRole("admin", "superadmin"), getAllUsers);
 router.put("/:userId", protect, updateSingleUser);
 router.delete("/:userId", protect, deleteUser);
 
