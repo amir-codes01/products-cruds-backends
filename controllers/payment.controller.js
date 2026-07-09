@@ -1,8 +1,16 @@
 const Order = require("../models/order.model");
+const Payment = require("../models/payment.model");
 const asyncHandler = require("../utils/asyncHandler");
 const ApiError = require("../utils/ApiError");
 const ApiResponse = require("../utils/ApiResponse");
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+
+const getStripe = () => {
+  if (!process.env.STRIPE_SECRET_KEY) {
+    throw new ApiError(503, "Stripe is not configured on the server");
+  }
+
+  return require("stripe")(process.env.STRIPE_SECRET_KEY);
+};
 
 exports.createPaymentIntent = asyncHandler(async (req, res) => {
   const { orderId } = req.body;
@@ -12,11 +20,16 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Order not found");
   }
 
-  if (order.isPaid) {
-    return res.status(400).json({ message: "Order already paid" });
+  if (order.user.toString() !== req.user._id.toString()) {
+    throw new ApiError(403, "Not authorized to pay for this order");
   }
 
-  const amountInPaisa = order.totalPrice * 100;
+  if (order.isPaid) {
+    throw new ApiError(400, "Order already paid");
+  }
+
+  const stripe = getStripe();
+  const amountInPaisa = Math.round(order.totalPrice * 100);
 
   const paymentIntent = await stripe.paymentIntents.create({
     amount: amountInPaisa,
@@ -28,16 +41,14 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
   });
 
   res.status(200).json(
-    new ApiResponse(200, {
+    new ApiResponse(200, "Payment intent created", {
       clientSecret: paymentIntent.client_secret,
     }),
   );
 });
 
-// @desc    Update order to paid
-// @route   PUT /api/orders/:id/pay
-// @access  Private
 exports.markOrderPaid = asyncHandler(async (req, res) => {
+  const stripe = getStripe();
   const sig = req.headers["stripe-signature"];
 
   let event;
@@ -54,7 +65,6 @@ exports.markOrderPaid = asyncHandler(async (req, res) => {
 
   if (event.type === "payment_intent.succeeded") {
     const paymentIntent = event.data.object;
-
     const { orderId, userId } = paymentIntent.metadata;
 
     const order = await Order.findById(orderId);
@@ -65,28 +75,57 @@ exports.markOrderPaid = asyncHandler(async (req, res) => {
     order.isPaid = true;
     order.paidAt = Date.now();
     order.status = "Processing";
-
     order.paymentResult = {
-      id: req.body.id,
-      status: req.body.status,
-      email: req.body.email,
-      method: req.body.method,
+      id: paymentIntent.id,
+      status: paymentIntent.status,
+      email: paymentIntent.receipt_email,
+      method: "Stripe",
     };
 
     await order.save();
 
-    await Payment.create({
-      order: orderId,
-      user: userId,
-      provider: "Stripe",
-      transactionId: paymentIntent.id,
-      amount: paymentIntent.amount / 100,
-      currency: "PKR",
-      status: "Succeeded",
-      rawResponse: paymentIntent,
-      paidAt: Date.now(),
-    });
+    await Payment.findOneAndUpdate(
+      { order: orderId },
+      {
+        provider: "Stripe",
+        transactionId: paymentIntent.id,
+        amount: paymentIntent.amount / 100,
+        currency: "PKR",
+        status: "Succeeded",
+        rawResponse: paymentIntent,
+        paidAt: Date.now(),
+      },
+      { upsert: true, new: true },
+    );
   }
 
-  res.status(200).json(new ApiResponse(200, "Order marked as paid"));
+  res.status(200).json(new ApiResponse(200, "Webhook processed"));
+});
+
+exports.confirmCodOrder = asyncHandler(async (req, res) => {
+  const order = await Order.findById(req.params.orderId);
+
+  if (!order) {
+    throw new ApiError(404, "Order not found");
+  }
+
+  if (order.user.toString() !== req.user._id.toString()) {
+    throw new ApiError(403, "Not authorized");
+  }
+
+  if (order.paymentMethod !== "COD") {
+    throw new ApiError(400, "This order is not a cash-on-delivery order");
+  }
+
+  order.status = "Processing";
+  await order.save();
+
+  res.status(200).json(
+    new ApiResponse(200, "Cash on delivery order confirmed", {
+      orderId: order._id,
+      status: order.status,
+      paymentMethod: order.paymentMethod,
+      totalPrice: order.totalPrice,
+    }),
+  );
 });

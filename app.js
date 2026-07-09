@@ -15,7 +15,13 @@ app.use(
   }),
 );
 
-app.use(express.json({ limit: "16kb" }));
+app.use((req, res, next) => {
+  if (req.originalUrl === "/api/payments/webhook") {
+    next();
+  } else {
+    express.json({ limit: "16kb" })(req, res, next);
+  }
+});
 app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 
 app.use(cookieParser());
@@ -27,6 +33,8 @@ app.use("/api/products", require("./routes/product.routes"));
 app.use("/api/category", require("./routes/category.routes"));
 app.use("/api/dashboard", require("./routes/dashboard.routes"));
 app.use("/api/audit-logs", require("./routes/auditLog.routes"));
+app.use("/api/payments", require("./routes/payment.routes"));
+app.use("/api/orders", require("./routes/order.routes"));
 
 app.use(errorHandler);
 
