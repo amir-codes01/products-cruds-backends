@@ -10,7 +10,7 @@ const {
   getAllOrders,
 } = require("../controllers/order.controller");
 
-const { protect, isAdmin } = require("../middlewares/auth.middleware");
+const { protect, checkRole } = require("../middlewares/auth.middleware");
 
 // USER ROUTES
 
@@ -24,8 +24,13 @@ router.patch("/:id/cancel", protect, cancelOrder);
 
 // Admin Routes
 
-router.get("/", protect, isAdmin, getAllOrders);
+router.get("/", protect, checkRole("admin", "superadmin"), getAllOrders);
 
-router.patch("/:id/status", protect, isAdmin, updateOrderStatus);
+router.patch(
+  "/:id/status",
+  protect,
+  checkRole("admin", "superadmin"),
+  updateOrderStatus,
+);
 
 module.exports = router;
