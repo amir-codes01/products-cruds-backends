@@ -1,6 +1,7 @@
 const Product = require("../models/product.model");
 const asyncHandler = require("../utils/asyncHandler");
 const ApiError = require("../utils/ApiError");
+const Category = require("../models/category.model");
 const ApiResponse = require("../utils/ApiResponse");
 const AuditLog = require("../models/audit.model");
 const { cloudinary } = require("../config/cloudinary.config");
@@ -86,7 +87,19 @@ exports.getProducts = asyncHandler(async (req, res) => {
   }
 
   if (category) {
-    filter.category = category;
+    const categoryDoc = await Category.findOne({ slug: category });
+    if (categoryDoc) {
+      filter.category = categoryDoc._id;
+    } else {
+      return res.status(200).json(
+        new ApiResponse(200, "Products fetched successfully", {
+          totalProducts: 0,
+          currentPage: Number(page),
+          totalPages: 0,
+          products: [],
+        }),
+      );
+    }
   }
 
   if (minPrice || maxPrice) {
